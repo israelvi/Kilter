@@ -22,6 +22,8 @@ async function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     backgroundColor: '#0e1116',
+    // Enable browser-style Ctrl+wheel zoom (off by default in Electron).
+    // This pairs with the View menu's Ctrl+= / Ctrl+- / Ctrl+0 shortcuts.
     // Explicitly enable resize/min/max — Electron defaults to true but on
     // Windows 11 the combination of `show: false` + `ready-to-show` can leave
     // the window manager caching a "fixed size" hint until first maximize.
@@ -35,7 +37,8 @@ async function createWindow() {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      zoomFactor: 1.0
     }
   });
 
@@ -46,6 +49,31 @@ async function createWindow() {
     // Open maximized by default — the catalog browser benefits from real estate.
     mainWindow?.maximize();
     mainWindow?.show();
+  });
+
+  // Enable browser-style Ctrl+MouseWheel zoom. Electron disables this by
+  // default; we hook into mouse-wheel events on the webContents and adjust
+  // the zoom level when Ctrl is held.
+  const wc = mainWindow.webContents;
+  wc.on('before-input-event', (_e, input) => {
+    if (input.type !== 'keyDown') return;
+    // Also support Ctrl+= / Ctrl+- / Ctrl+0 here as a fallback in case the
+    // menu accelerators don't fire (some Linux WMs eat them).
+    if (!input.control && !input.meta) return;
+    if (input.key === '0') {
+      wc.setZoomLevel(0);
+    } else if (input.key === '=' || input.key === '+') {
+      wc.setZoomLevel(wc.getZoomLevel() + 0.5);
+    } else if (input.key === '-') {
+      wc.setZoomLevel(wc.getZoomLevel() - 0.5);
+    }
+  });
+  wc.on('zoom-changed', (_e, zoomDirection) => {
+    // Fired when the user does Ctrl+ScrollWheel — Electron emits the
+    // direction ('in' / 'out') but does NOT actually change the zoom level
+    // unless we do it ourselves.
+    const current = wc.getZoomLevel();
+    wc.setZoomLevel(zoomDirection === 'in' ? current + 0.5 : current - 0.5);
   });
 
   if (isDev) {
