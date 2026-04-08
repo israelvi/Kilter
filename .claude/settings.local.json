@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bunx tsc:*)",
+      "Bash(powershell.exe -Command 'Get-Process electron -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle } | Select-Object Id, MainWindowTitle | Format-Table -AutoSize')"
+    ]
+  }
+}

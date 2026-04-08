@@ -1,0 +1,7 @@
+# Drop the Kilter Board base APK here:
+#
+#   com.auroraclimbing.kilterboard__base.apk      (~120 MB)
+#
+# Then in the app: Boards → Pick recovery bundle → choose findings/android/sample/
+#
+# See findings/android/sample/README.md for details.

@@ -1,0 +1,35 @@
+{
+  "name": "kilter-recovery-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop recovery toolkit for investigating Kilter Board data on Android devices.",
+  "main": "dist/electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n vite,tsc,electron -c blue,yellow,green \"vite\" \"tsc -p tsconfig.electron.json --watch --preserveWatchOutput\" \"wait-on http://localhost:8101 dist/electron/main.js && node scripts/run-electron.js\"",
+    "build": "bun run build:renderer && bun run build:electron",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "start": "node scripts/run-electron.js",
+    "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 || echo \"electron-rebuild skipped\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^9.0.1",
+    "cross-env": "^10.1.0",
+    "electron": "^32.1.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8",
+    "wait-on": "^8.0.1"
+  }
+}

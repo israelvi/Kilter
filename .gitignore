@@ -1,0 +1,27 @@
+node_modules/
+dist/
+out/
+.vite/
+
+# Recovery evidence bundles — large, contain APKs and per-device data.
+# Everything under findings/ is ignored by default.
+findings/*
+findings/*/*
+
+# But DO allow per-platform sample bundles to be committed. These are small
+# (~3 MB) pre-built catalogs created by scripts/build-sample-catalog.js — they
+# contain a trimmed SQLite + a few board images, no APK / IPA required.
+# Real recovery bundles (KilterRecovery_*) stay ignored.
+!findings/android/
+!findings/android/sample/
+!findings/android/sample/**
+!findings/ios/
+!findings/ios/sample/
+!findings/ios/sample/**
+*.log
+.DS_Store
+.env
+.env.local
+*.tsbuildinfo
+.vscode/
+.idea/
