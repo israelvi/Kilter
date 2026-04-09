@@ -16,9 +16,13 @@
 
 If you've ever been a regular at a Kilter Board gym, you know the ritual: open the app, scroll through thousands of problems set by climbers around the world, find the V4 a friend just sent, watch their Instagram beta, project it for an hour, log the send.
 
-Then one day **the app updates, the API changes, the catalog goes weird**, and the problems you cared about — the ones your friends set, the ones your gym programmed for the comp, the ones that defined your last six months of climbing — start disappearing from the feed. Or worse, you upgrade your phone, the app re-syncs, and you find yourself wondering: *was any of that ever really mine?*
+Then on **March 26, 2026, the original Kilter Board app simply went dark**. The server was switched off. The app was pulled from the App Store and Google Play. Tens of thousands of climbers lost access to 12 years of logged ascents, grades, projects, and training history — instantly, with no warning.
 
-The Kilter Board catalog is a **public, community-built dataset of 344,504 climbs**, lovingly authored by 50,000+ setters, with 32,000 Instagram beta videos linked across them. It lives in a SQLite database that ships embedded inside every release of the Android APK and the iOS IPA. **Every install of the app already has a copy of this entire library on disk.** It's right there, on your phone, today.
+What happened wasn't a bug or a routine "the API changed." It was the endgame of a years-long legal fight between **Kilter LLC** (the company that owns the trademarks and physical board designs) and **Aurora Climbing** (the company founded by Peter Michaux that has actually built and operated every version of the Kilter Board app since 2018, originally on nothing more than verbal agreements). The two sides had been suing each other since 2023 over IP, contracts, faulty kits, and reverse-engineering claims. On **March 19, 2026**, Kilter sent Aurora a cease-and-desist demanding they immediately stop using Kilter's name, logo, and board designs in the app. Aurora's position was that the trademarks were "inextricable" from the app — the bundle id, the server hostname `api.kilterboardapp.com`, the very identifier — so on March 26 Aurora pulled the plug. Kilter launched a replacement app the same day. Aurora now tells climbers they can email `support@auroraclimbing.com` with their original credentials to get a JSON dump of their account back, eventually. Kilter says climbers "deserve their data" but cannot promise full recovery of logbooks or history. On March 30, a Colorado judge dismissed Kilter's most recent lawsuit, but Aurora's countersuit is still pending.
+
+For the climber in the middle of all this, the takeaway is brutally simple: **the catalog and history you thought lived in "your" app actually lived on a server controlled by two companies who were fighting each other, and one day it just wasn't there anymore**. That's the situation this toolkit was built for.
+
+Here's the thing, though. The Kilter Board catalog is a **public, community-built dataset of 344,504 climbs**, lovingly authored by 50,000+ setters, with 32,000 Instagram beta videos linked across them. It lives in a SQLite database that ships embedded inside every release of the Android APK and the iOS IPA. **If you ever installed the original Aurora-built Kilter Board app on your phone, a complete copy of that catalog is still sitting on your device's disk right now**, even after the server went dark. The app can't reach the server anymore, but the data is local. It's right there.
 
 This project exists to **give you that copy back, on your terms**. To answer, with evidence and honest uncertainty:
 
@@ -74,7 +78,8 @@ This is **Phase 1**. The architecture is intentionally split into platform branc
 
 ## A peek inside
 
-> *Screenshots go here once captured. Drop PNGs into [`docs/screenshots/`](docs/screenshots/) and reference them below.*
+### The Welcome screen — what the app does, and what it explicitly does *not* do
+![Welcome screen — honest up-front summary of capabilities, with "Recovery is not guaranteed" disclaimer and a clear list of what the toolkit does and does not do](docs/screenshots/welcome-screen.png)
 
 ### The Boards screen — every official board configuration that has at least one climb
 ![Boards screen — grid of every Kilter board configuration with rendered images and live climb counts](docs/screenshots/boards-screen.png)
@@ -175,7 +180,7 @@ For the full layout breakdown → **[CLAUDE.md](CLAUDE.md)**.
 
 This project exists because of the climbers who built the Kilter Board public catalog over the years — the **50,000+ setters** who put problems out there, the **108,296 ascensionists** who logged sends on a single popular V4, the climbers who took the time to upload their beta to Instagram so the next person could learn from them. The catalog is a shared resource and this toolkit is one small attempt to treat it that way.
 
-Special thanks to **Aurora Climbing** for building Kilter Board, Tension Board, and the rest of the LED training board ecosystem. This toolkit is built in good faith, on data the user already legitimately installed on their own device, with the goal of empowering the climbing community to preserve and explore the catalog they helped create. If you're at Aurora Climbing and have feedback or concerns, please open an issue.
+This toolkit takes **no side** in the Kilter LLC vs Aurora Climbing dispute. It's built in good faith on data the user already legitimately installed on their own device, before the original app was taken down. Credit where credit is due: **Aurora Climbing** (Peter Michaux and team) is the company that actually designed and built every version of the original Kilter Board app, the embedded SQLite catalog format, and the broader LED-training-board software ecosystem (Tension, Decoy, Grasshopper, So iLL, Touchstone, Aurora Board), and they continue to operate the apps for those other boards today. **Kilter LLC** (Ian Powell, Will Anglin, Jackie Hueftle and team) designed the physical Kilter Board itself, the holds, the route-setting vision, and built the partnerships that put boards in gyms around the world. The catalog is what it is because of the work of both — and because of every climber who logged a send on it. If you're at either company and have feedback or concerns, please open an issue.
 
 ## License
 
