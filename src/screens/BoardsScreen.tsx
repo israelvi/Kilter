@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ipc } from '../ipc/bridge';
 import { store } from '../state/store';
-import type { BoardConfig, CatalogStatus } from '@models/catalogTypes';
+import type { BoardConfig, CatalogStatus, ExportResult, ExportAllResult } from '@models/catalogTypes';
+import { ExportSuccessModal } from './ExportSuccessModal';
 
 interface BoardWithImage extends BoardConfig {
   image?: { mime: string; base64: string } | null;
@@ -71,6 +72,49 @@ export function BoardsScreen() {
     store.set({ selectedComboId: b.comboId, screen: 'climbs' });
   };
 
+  const [exporting, setExporting] = useState<number | null>(null);
+  const [exportingAll, setExportingAll] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number; boardName: string; percent: number } | null>(null);
+  const [exportModalResult, setExportModalResult] = useState<ExportResult | ExportAllResult | null>(null);
+
+  useEffect(() => {
+    const unsub = ipc().events.onExportProgress((p) => setExportProgress(p));
+    return unsub;
+  }, []);
+
+  const exportAll = async () => {
+    setExportingAll(true);
+    setExportProgress(null);
+    setError(null);
+    try {
+      const result = await ipc().catalog.exportAllForBoardPulse();
+      if (result) {
+        setExportModalResult(result);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExportingAll(false);
+      setExportProgress(null);
+    }
+  };
+
+  const exportForBoardPulse = async (comboId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting(comboId);
+    setError(null);
+    try {
+      const result = await ipc().catalog.exportForBoardPulse(comboId);
+      if (result) {
+        setExportModalResult(result);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const hasCatalog = status?.available === true;
 
   return (
@@ -83,7 +127,16 @@ export function BoardsScreen() {
           </p>
         </div>
         {hasCatalog && (
-          <button onClick={() => void pickBundle()}>Switch bundle</button>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              onClick={() => void exportAll()}
+              disabled={exportingAll || boards.length === 0}
+              className="primary"
+            >
+              {exportingAll ? 'Exporting…' : 'Export All for BoardPulse'}
+            </button>
+            <button onClick={() => void pickBundle()}>Switch bundle</button>
+          </div>
         )}
       </div>
 
@@ -114,7 +167,32 @@ export function BoardsScreen() {
         )}
       </div>
 
+      {exportProgress && (
+        <div className="card" style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+            <span>Exporting: {exportProgress.boardName}</span>
+            <span>{exportProgress.current}/{exportProgress.total}</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--surface)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              borderRadius: 3,
+              background: 'var(--accent)',
+              width: `${exportProgress.percent}%`,
+              transition: 'width 0.3s ease-out'
+            }} />
+          </div>
+        </div>
+      )}
       {error && <div className="notice bad">{error}</div>}
+
+      {/* Export success modal */}
+      {exportModalResult && (
+        <ExportSuccessModal
+          result={exportModalResult}
+          onClose={() => setExportModalResult(null)}
+        />
+      )}
 
       {loading && hasCatalog && <div className="empty">Loading boards…</div>}
 
@@ -136,6 +214,14 @@ export function BoardsScreen() {
                 <div className="board-card-sub">{b.sizeName}</div>
                 <div className="board-card-set">{b.setName}</div>
                 <div className="board-card-count">{b.climbCount.toLocaleString()} climbs</div>
+                <button
+                  className="export-bp-btn"
+                  onClick={(e) => void exportForBoardPulse(b.comboId, e)}
+                  disabled={exporting === b.comboId}
+                  title="Export this board's catalog for BoardPulse"
+                >
+                  {exporting === b.comboId ? 'Exporting…' : 'Export for BoardPulse'}
+                </button>
               </div>
             </button>
           ))}

@@ -17,7 +17,9 @@ const api: KilterIpc = {
     listClimbsForCombo: (comboId, query) => ipcRenderer.invoke('catalog.listClimbsForCombo', comboId, query),
     listGradesForCombo: (comboId) => ipcRenderer.invoke('catalog.listGradesForCombo', comboId),
     getClimbDetail: (uuid) => ipcRenderer.invoke('catalog.getClimbDetail', uuid),
-    getBoardImage: (comboId) => ipcRenderer.invoke('catalog.getBoardImage', comboId)
+    getBoardImage: (comboId) => ipcRenderer.invoke('catalog.getBoardImage', comboId),
+    exportForBoardPulse: (comboId) => ipcRenderer.invoke('catalog.exportForBoardPulse', comboId),
+    exportAllForBoardPulse: () => ipcRenderer.invoke('catalog.exportAllForBoardPulse')
   },
   adb: {
     detect: () => ipcRenderer.invoke('adb.detect'),
@@ -49,6 +51,11 @@ const api: KilterIpc = {
       const wrapped = (_: unknown, entry: Parameters<typeof cb>[0]) => cb(entry);
       ipcRenderer.on('log.entry', wrapped);
       return () => ipcRenderer.removeListener('log.entry', wrapped);
+    },
+    onExportProgress: (cb) => {
+      const wrapped = (_: unknown, payload: { current: number; total: number; boardName: string; percent: number }) => cb(payload);
+      ipcRenderer.on('export.progress', wrapped);
+      return () => ipcRenderer.removeListener('export.progress', wrapped);
     }
   }
 };

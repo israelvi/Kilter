@@ -109,6 +109,24 @@ export interface ClimbDetail {
   renderConfig: { comboId: number; boundingBox: { left: number; right: number; bottom: number; top: number }; imageFilename: string } | null;
 }
 
+export interface ExportResult {
+  path: string;
+  boardName: string;
+  climbCount: number;
+  sizeMB: string;
+  rawMB: string | null;
+  compressed: boolean;
+}
+
+export interface ExportAllResult {
+  path: string;
+  count: number;
+  totalClimbs: number;
+  sizeMB: string;
+  rawMB: string | null;
+  compressed: boolean;
+}
+
 export interface CatalogIpc {
   init(): Promise<CatalogStatus>;
   status(): Promise<CatalogStatus>;
@@ -122,4 +140,6 @@ export interface CatalogIpc {
   listGradesForCombo(comboId: number): Promise<string[]>;
   getClimbDetail(uuid: string): Promise<ClimbDetail | null>;
   getBoardImage(comboId: number): Promise<{ mime: string; base64: string } | null>;
+  exportForBoardPulse(comboId: number): Promise<ExportResult | null>;
+  exportAllForBoardPulse(): Promise<ExportAllResult | null>;
 }

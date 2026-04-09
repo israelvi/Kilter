@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(bunx tsc:*)",
-      "Bash(powershell.exe -Command 'Get-Process electron -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle } | Select-Object Id, MainWindowTitle | Format-Table -AutoSize')"
+      "Bash(powershell.exe -Command 'Get-Process electron -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle } | Select-Object Id, MainWindowTitle | Format-Table -AutoSize')",
+      "Bash(git checkout:*)",
+      "WebSearch",
+      "Read(//c/Users/israe/source/repos/BoardPulse/**)",
+      "Bash(bun add:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\israe\\source\\repos\\BoardPulse\\src"
     ]
   }
 }

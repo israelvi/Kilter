@@ -132,6 +132,128 @@ export function registerIpc(deps: Deps): void {
   ipcMain.handle('catalog.getBoardImage', async (_e, comboId: number) => {
     return catalog.getBoardImageBase64(comboId);
   });
+
+  ipcMain.handle('catalog.exportAllForBoardPulse', async (e) => {
+    const configs = catalog.listBoardConfigs();
+    if (configs.length === 0) throw new Error('No board configurations found');
+
+    const r = await dialog.showSaveDialog({
+      title: 'Export all boards for BoardPulse',
+      defaultPath: 'board-catalog.obc.gz',
+      filters: [
+        { name: 'OpenBoard Catalog (compressed)', extensions: ['obc.gz'] },
+        { name: 'OpenBoard Catalog (JSON)', extensions: ['obc.json'] }
+      ]
+    });
+    if (r.canceled || !r.filePath) return null;
+
+    const useGzip = r.filePath.endsWith('.gz');
+    const win = require('electron').BrowserWindow.fromWebContents(e.sender);
+
+    const allCatalogs: any[] = [];
+    for (let i = 0; i < configs.length; i++) {
+      const cfg = configs[i];
+      win?.webContents.send('export.progress', {
+        current: i + 1,
+        total: configs.length,
+        boardName: `${cfg.productName} ${cfg.sizeName} ${cfg.setName}`,
+        percent: Math.round(((i + 1) / configs.length) * 90)
+      });
+      const json = catalog.exportForBoardPulse(cfg.comboId);
+      allCatalogs.push(JSON.parse(json));
+    }
+
+    win?.webContents.send('export.progress', {
+      current: configs.length,
+      total: configs.length,
+      boardName: useGzip ? 'Compressing...' : 'Writing file...',
+      percent: 95
+    });
+
+    const bundle = {
+      format: 'openboard-catalog-bundle',
+      schemaVersion: 1,
+      catalogs: allCatalogs,
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        exportedBy: 'Kilter Recovery Kit',
+        boardCount: allCatalogs.length,
+        totalClimbs: allCatalogs.reduce((sum: number, c: any) => sum + (c.metadata?.climbCount ?? 0), 0)
+      }
+    };
+
+    const jsonStr = JSON.stringify(bundle);
+    const { promises: fsp } = require('node:fs');
+
+    if (useGzip) {
+      const { gzipSync } = require('node:zlib');
+      const compressed = gzipSync(Buffer.from(jsonStr, 'utf-8'), { level: 9 });
+      await fsp.writeFile(r.filePath, compressed);
+    } else {
+      await fsp.writeFile(r.filePath, jsonStr, 'utf-8');
+    }
+
+    const { statSync } = require('node:fs');
+    const fileSize = statSync(r.filePath).size;
+    const sizeMB = (fileSize / 1024 / 1024).toFixed(1);
+    const rawMB = (Buffer.byteLength(jsonStr, 'utf-8') / 1024 / 1024).toFixed(1);
+    const totalClimbs = bundle.metadata.totalClimbs;
+
+    return {
+      path: r.filePath,
+      count: allCatalogs.length,
+      totalClimbs,
+      sizeMB,
+      rawMB: useGzip ? rawMB : null,
+      compressed: useGzip
+    };
+  });
+
+  ipcMain.handle('catalog.exportForBoardPulse', async (e, comboId: number) => {
+    const json = catalog.exportForBoardPulse(comboId);
+    const cfg = catalog.listBoardConfigs().find((c) => c.comboId === comboId);
+    const baseName = cfg
+      ? `${cfg.productName}-${cfg.sizeName}-${cfg.setName}`.toLowerCase().replace(/\s+/g, '-')
+      : 'board-catalog';
+
+    const r = await dialog.showSaveDialog({
+      title: 'Export catalog for BoardPulse',
+      defaultPath: `${baseName}.obc.gz`,
+      filters: [
+        { name: 'OpenBoard Catalog (compressed)', extensions: ['obc.gz'] },
+        { name: 'OpenBoard Catalog (JSON)', extensions: ['obc.json'] }
+      ]
+    });
+    if (r.canceled || !r.filePath) return null;
+
+    const useGzip = r.filePath.endsWith('.gz');
+    const { promises: fsp } = require('node:fs');
+
+    if (useGzip) {
+      const { gzipSync } = require('node:zlib');
+      const compressed = gzipSync(Buffer.from(json, 'utf-8'), { level: 9 });
+      await fsp.writeFile(r.filePath, compressed);
+    } else {
+      await fsp.writeFile(r.filePath, json, 'utf-8');
+    }
+
+    const { statSync } = require('node:fs');
+    const fileSize = statSync(r.filePath).size;
+    const sizeMB = (fileSize / 1024 / 1024).toFixed(1);
+    const rawMB = (Buffer.byteLength(json, 'utf-8') / 1024 / 1024).toFixed(1);
+    const parsed = JSON.parse(json);
+    const climbCount = parsed.metadata?.climbCount ?? 0;
+    const boardName = cfg ? `${cfg.productName} ${cfg.sizeName} ${cfg.setName}` : 'Board';
+
+    return {
+      path: r.filePath,
+      boardName,
+      climbCount,
+      sizeMB,
+      rawMB: useGzip ? rawMB : null,
+      compressed: useGzip
+    };
+  });
 }
 
 /**

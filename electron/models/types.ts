@@ -211,5 +211,6 @@ export interface KilterIpc {
   events: {
     onSessionProgress(cb: (payload: { sessionId: string; phase: string; message: string }) => void): () => void;
     onLog(cb: (entry: LogEntry) => void): () => void;
+    onExportProgress(cb: (payload: { current: number; total: number; boardName: string; percent: number }) => void): () => void;
   };
 }

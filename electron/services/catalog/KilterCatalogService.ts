@@ -646,6 +646,217 @@ export class KilterCatalogService {
     return this.boardConfigsCached.find((c) => c.comboId === comboId) ?? null;
   }
 
+  // ── Export for BoardPulse (.obc.json) ─────────────────────────────────
+
+  /**
+   * Exports a board configuration + all its climbs as an OpenBoard Catalog
+   * (.obc.json) file that BoardPulse can import directly.
+   *
+   * Returns the JSON string (the caller writes it to disk via dialog.save).
+   */
+  exportForBoardPulse(comboId: number): string {
+    if (!this.db) throw new Error('Catalog not open');
+
+    const cfg = this.findCombo(comboId);
+    if (!cfg) throw new Error(`Board config ${comboId} not found`);
+
+    const size = this.sizeById.get(cfg.productSizeId);
+    const product = this.productById.get(size?.product_id ?? -1);
+    const productId = size?.product_id ?? 0;
+
+    // Holds: holes for this product
+    const productHoles = this.holesByProductId.get(productId) ?? new Map();
+    const productRoles = this.rolesByProductId.get(productId) ?? new Map();
+
+    // LEDs: query from DB — maps hole_id → position (the BLE address)
+    const ledRows = this.db.prepare(
+      'SELECT id, hole_id, position FROM leds WHERE product_size_id = ?'
+    ).all(cfg.productSizeId) as Array<{ id: number; hole_id: number; position: number }>;
+
+    const holeLedMap = new Map<number, { ledId: string; position: number }>();
+    const leds: Array<{ id: string; protocolAddress: number }> = [];
+    for (const row of ledRows) {
+      const ledId = `led-${row.id}`;
+      leds.push({ id: ledId, protocolAddress: row.position });
+      holeLedMap.set(row.hole_id, { ledId, position: row.position });
+    }
+
+    // Build holds array
+    const holds: Array<{ id: string; x: number; y: number; ledRefs: string[]; setRefs: string[] }> = [];
+    for (const [holeId, hole] of productHoles) {
+      const led = holeLedMap.get(holeId);
+      holds.push({
+        id: `h-${holeId}`,
+        x: hole.x,
+        y: hole.y,
+        ledRefs: led ? [led.ledId] : [],
+        setRefs: [] // simplified — all holds belong to the combo's set
+      });
+    }
+
+    // Roles
+    const roles: Array<{ id: string; displayName: string; screenColor: string; ledEncoding: { protocol: string; value: number } }> = [];
+    for (const [roleId, role] of productRoles) {
+      roles.push({
+        id: role.name,
+        displayName: role.full_name,
+        screenColor: role.screen_color,
+        ledEncoding: { protocol: 'aurora-ble-v1', value: roleId }
+      });
+    }
+
+    // Climbs for this combo
+    const climbUuids = this.climbsByCombo.get(comboId) ?? [];
+    const FRAME_RE = /p(\d+)r(\d+)/g;
+
+    const climbs: Array<any> = [];
+    // Batch queries in chunks of 500 to stay under SQLite's 999-variable limit
+    const CHUNK = 500;
+    if (climbUuids.length > 0) {
+      const climbRows: Array<any> = [];
+      const statsRows: Array<any> = [];
+      const betaRows: Array<any> = [];
+
+      for (let i = 0; i < climbUuids.length; i += CHUNK) {
+        const chunk = climbUuids.slice(i, i + CHUNK);
+        const ph = chunk.map(() => '?').join(',');
+
+        climbRows.push(...this.db.prepare(`
+          SELECT uuid, name, setter_username, description, frames, created_at
+          FROM climbs WHERE uuid IN (${ph})
+        `).all(...chunk) as Array<any>);
+
+        statsRows.push(...this.db.prepare(`
+          SELECT climb_uuid, angle, display_difficulty, ascensionist_count, quality_average
+          FROM climb_stats WHERE climb_uuid IN (${ph})
+        `).all(...chunk) as Array<any>);
+
+        betaRows.push(...this.db.prepare(`
+          SELECT climb_uuid, link FROM beta_links
+          WHERE climb_uuid IN (${ph}) AND is_listed = 1
+        `).all(...chunk) as Array<any>);
+      }
+
+      const statsByUuid = new Map<string, Array<any>>();
+      for (const s of statsRows) {
+        let arr = statsByUuid.get(s.climb_uuid);
+        if (!arr) { arr = []; statsByUuid.set(s.climb_uuid, arr); }
+        arr.push(s);
+      }
+
+      const betaByUuid = new Map<string, string[]>();
+      for (const b of betaRows) {
+        let arr = betaByUuid.get(b.climb_uuid);
+        if (!arr) { arr = []; betaByUuid.set(b.climb_uuid, arr); }
+        arr.push(b.link);
+      }
+
+      for (const row of climbRows) {
+        const climbHolds: Array<{ holdId: string; role: string }> = [];
+        let m: RegExpExecArray | null;
+        FRAME_RE.lastIndex = 0;
+        while ((m = FRAME_RE.exec(row.frames))) {
+          const placementId = Number.parseInt(m[1], 10);
+          const roleId = Number.parseInt(m[2], 10);
+          const holeId = this.placementToHole.get(placementId);
+          const role = productRoles.get(roleId);
+          if (holeId == null) continue;
+          climbHolds.push({ holdId: `h-${holeId}`, role: role?.name ?? 'unknown' });
+        }
+
+        const stats = (statsByUuid.get(row.uuid) ?? []).map((s: any) => ({
+          angle: s.angle,
+          difficulty: s.display_difficulty,
+          grade: this.gradeNameByDifficulty.get(Math.round(s.display_difficulty)) ?? '',
+          ascensionistCount: s.ascensionist_count,
+          qualityAverage: s.quality_average
+        }));
+
+        climbs.push({
+          id: row.uuid,
+          name: row.name ?? '',
+          setter: row.setter_username ?? '',
+          description: row.description ?? '',
+          holds: climbHolds,
+          angles: stats,
+          betaUrls: betaByUuid.get(row.uuid) ?? [],
+          createdAt: row.created_at ?? ''
+        });
+      }
+    }
+
+    // Board image as base64
+    const imgCache = this.boardImageCache.get(comboId);
+    const images: Array<any> = [];
+    if (imgCache) {
+      images.push({
+        id: `img-${comboId}`,
+        boardConfigId: `${product?.name ?? 'board'}-${cfg.sizeName}-${cfg.setName}`.toLowerCase().replace(/\s+/g, '-'),
+        mimeType: imgCache.mime,
+        data: imgCache.base64
+      });
+    }
+
+    // Supported angles from stats
+    const allAngles = new Set<number>();
+    for (const c of climbs) {
+      for (const s of c.angles) allAngles.add(s.angle);
+    }
+
+    const boardId = `${product?.name ?? 'board'}-${cfg.sizeName}-${cfg.setName}`.toLowerCase().replace(/\s+/g, '-');
+
+    const obc = {
+      format: 'openboard-catalog',
+      schemaVersion: 1,
+      board: {
+        id: boardId,
+        family: (product?.name ?? 'unknown').toLowerCase().replace(/\s+board$/i, '').replace(/\s+/g, '-'),
+        displayName: `${product?.name ?? 'Board'} ${cfg.sizeName} ${cfg.setName}`,
+        manufacturer: 'Aurora Climbing',
+        model: cfg.sizeName,
+        variant: cfg.setName,
+        supportedAngles: [...allAngles].sort((a, b) => a - b)
+      },
+      geometry: {
+        coordinateSystem: 'cartesian-mm',
+        origin: 'bottom-left',
+        boundingBox: {
+          minX: cfg.boundingBox.left,
+          minY: cfg.boundingBox.bottom,
+          maxX: cfg.boundingBox.right,
+          maxY: cfg.boundingBox.top
+        }
+      },
+      holds,
+      leds,
+      sets: [{ id: `set-${cfg.setId}`, displayName: cfg.setName, holdIds: holds.map(h => h.id) }],
+      roles,
+      protocol: {
+        id: 'aurora-ble-v1',
+        transport: 'bluetooth-le',
+        ble: {
+          advertisementService: '4488B571-7806-4DF6-BCFF-A2897E4953FF',
+          primaryService: '6E400001-B5A3-F393-E0A9-E50E24DCCA9E',
+          writeCharacteristic: '6E400002-B5A3-F393-E0A9-E50E24DCCA9E',
+          writeMode: 'writeWithoutResponse',
+          maxPacketSize: 20
+        }
+      },
+      climbs,
+      images,
+      metadata: {
+        sourceFormat: 'aurora-sqlite',
+        sourceHash: '',
+        distilledAt: new Date().toISOString(),
+        distilledBy: 'Kilter Recovery Kit',
+        climbCount: climbs.length,
+        holdCount: holds.length
+      }
+    };
+
+    return JSON.stringify(obc);
+  }
+
   close(): void {
     try { this.db?.close(); } catch { /* ignore */ }
     this.db = null;
